@@ -41,6 +41,24 @@ import static java.net.HttpURLConnection.HTTP_REQ_TOO_LONG;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
+ * 缓存策略
+ * 浏览器请求 —— 有缓存，是否过期？
+ * 否—— 从缓存读取 —— 显示
+ *
+ * 是—— ETag —— 是 ——> 向web Server Request 带if—None-Match ——————————————————
+ *      | 否                                                                |
+ *      Last_Modified —— 是 ——>  向web Server Request 带if—Modified-Since ————
+ *      | 否                                                                |
+ *      请求响应，缓存协商           <—————————  200   ————————————————200 or 304
+ *      |                                                                304|
+ *      显示                       <—————————  从缓存中读取   ——————————————————
+ *
+ * 类似mapping操作，将2个值输入，再将2个值输出
+ * Input : request, cacheCandidate
+ * CacheStrategy : 处理，判断Header信息
+ * Output: networkRequest, cacheResponse
+ *
+ * cacheCandidate
  * Given a request and cached response, this figures out whether to use the network, the cache, or
  * both. 给一个request 和 缓存的响应，无论使用网络，缓存或者2者都用。
  *
@@ -48,6 +66,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * header for conditional GETs) or warnings to the cached response (if the cached data is
  * potentially stale).
  * 选择一个缓存策略可能向请求添加条件(如"If-Modified-Since"头GET条件)或警告的缓存的响应(如果缓存的数据可能是过期)。
+ *
  */
 public final class CacheStrategy {
   /** The request to send on the network, or null if this call doesn't use the network. */
@@ -107,15 +126,19 @@ public final class CacheStrategy {
     final Request request;
     final Response cacheResponse;
 
-    /** The server's time when the cached response was served, if known. */
+    /** 服务器日期 缓存的响应服务 The server's time when the cached response was served, if known. */
     private Date servedDate;
     private String servedDateString;
 
-    /** The last modified date of the cached response, if known. */
+    /** 最后一次缓存响应日期 The last modified date of the cached response, if known.
+     * Client第一次网络请求，Server返回 Last-Modified: Tue, 12 Jan 2016 09:31:27 GMT
+     * 再次请求，通过发送 If-Modified-Since: Tue, 12 Jan 2016 09:31:27 GMT。 Server进行判断，如果缓存可以使用，就返回304.
+     */
     private Date lastModified;
     private String lastModifiedString;
 
     /**
+     * 缓存到期日期，field，max-age被设置。一般在Response报文中，当超过这个时间后端响应被认为无效而需要网络连接的，反之使用缓存。
      * The expiration date of the cached response, if known. If both this field and the max age are
      * set, the max age is preferred.
      */
@@ -133,7 +156,11 @@ public final class CacheStrategy {
      */
     private long receivedResponseMillis;
 
-    /** Etag of the cached response. */
+    /** 对资源文件的一种摘要 Etag of the cached response.
+     * 当Client第一次请求时，Server 返回 ETag: "5694c7ef-24dc"
+     * 再次请求时，通过发送 If-None-Match:"5694c7ef-24dc"， 交给Server进行判断，如果仍然可以使用缓存，就返回304。
+     * 如果ETag Last-Modified都有，则必须一次性发给Server，他们没有优先级之分。
+     */
     private String etag;
 
     /** Age of the cached response. */
@@ -162,6 +189,12 @@ public final class CacheStrategy {
           } else if ("ETag".equalsIgnoreCase(fieldName)) {
             etag = value;
           } else if ("Age".equalsIgnoreCase(fieldName)) {
+            /** age
+             *  The Age response-header field conveys the sender's estimate of the amount of time since
+             *  the response (or its revalidation) was generated at the origin server.
+             *  就是CDN反代服务器到原始服务器获取数据延时的缓存时间
+             */
+
             ageSeconds = HttpHeaders.parseSeconds(value, -1);
           }
         }
@@ -182,7 +215,7 @@ public final class CacheStrategy {
       return candidate;
     }
 
-    /** Returns a strategy to use assuming the request can use the network. */
+    /** now - sent + age < max-age  Returns a strategy to use assuming the request can use the network. */
     private CacheStrategy getCandidate() {
       // No cached response.
       if (cacheResponse == null) {

@@ -46,16 +46,19 @@ import okio.Source;
 import static okhttp3.internal.platform.Platform.WARN;
 
 /**
- * 文件中使用大量空间的缓存。Entry：Key+Value
+ * 文件中使用大量空间的缓存。Entry：Key([a-z0-9_-]{1,64}) + Value(0, Integer.MAX_VALUE)
  * A cache that uses a bounded amount of space on a filesystem. Each cache entry has a string key
  * and a fixed number of values. Each key must match the regex <strong>[a-z0-9_-]{1,64}</strong>.
  * Values are byte sequences, accessible as streams or files. Each value must be between {@code 0}
  * and {@code Integer.MAX_VALUE} bytes in length.
  *
+ * 文件目录中缓存数据。目录必须是exclusive专有的 对于缓存，缓存必须从他的目录中删除或覆盖。同一时间使用同一个缓存目录的多个操作是会异常的
  * <p>The cache stores its data in a directory on the filesystem. This directory must be exclusive
  * to the cache; the cache may delete or overwrite files from its directory. It is an error for
  * multiple processes to use the same cache directory at the same time.
  *
+ * 缓存限制了存储到文件中的字节数。存储的字节数 > limit, 缓存将会被移除entries直到满足limit。
+ * 限制不是严格的：缓存可能暂时超出过后就会删除。 限制不包括系统的overhead 或 缓存日志，所以对空间敏感的app应该设置一个稳妥的limit。
  * <p>This cache limits the number of bytes that it will store on the filesystem. When the number of
  * stored bytes exceeds the limit, the cache will remove entries in the background until the limit
  * is satisfied. The limit is not strict: the cache may temporarily exceed it while waiting for
@@ -64,28 +67,45 @@ import static okhttp3.internal.platform.Platform.WARN;
  *
  * <p>Clients call {@link #edit} to create or update the values of an entry. An entry may have only
  * one editor at one time; if a value is not available to be edited then {@link #edit} will return
- * null.
+ * null. Client必须调用edit创建或更新一个entry的values。一个Entry可能有同一时间有一个editor。一个value不可用则return null。
  *
  * <ul>
  *     <li>When an entry is being <strong>created</strong> it is necessary to supply a full set of
  *         values; the empty value should be used as a placeholder if necessary.
+ *         一个entry为提供Value集合而被创建。一个empty Value应该被一个占位符去使用
  *     <li>When an entry is being <strong>edited</strong>, it is not necessary to supply data for
  *         every value; values default to their previous value.
+ *         一个entry被创建，不需要提供每一个Value的数据，Value默认是他们的前一个值。
  * </ul>
  *
  * <p>Every {@link #edit} call must be matched by a call to {@link Editor#commit} or {@link
  * Editor#abort}. Committing is atomic: a read observes the full set of values as they were before
  * or after the commit, but never a mix of values.
+ * 每一个edit调用都必须通过调用commit abort去匹配。commit是自动的。当他们commit前后会监听全部的values。
  *
  * <p>Clients call {@link #get} to read a snapshot of an entry. The read will observe the value at
  * the time that {@link #get} was called. Updates and removals after the call do not impact ongoing
  * reads.
+ * Client调用get去read 一个entry的snapshot。read监听同一时间被调用的value。调用没有冲击不间断的read后更新和移除。
  *
- * <p>This class is tolerant of some I/O errors. If files are missing from the filesystem, the
- * corresponding entries will be dropped from the cache. If an error occurs while writing a cache
+ *  这个类岁IO是宽容的。如果文件从系统中丢失，相关的entries将会从缓存中dropped。
+ *  如果一个error在写缓存Value时发生，edit静默失败。调用者应该通过catch IO异常处理问题 并且有恰当的响应。
+ * <p>This class is tolerant宽容的，能耐的 of some I/O errors. If files are missing from the filesystem, the
+ * corresponding相应的 entries will be dropped from the cache. If an error occurs while writing a cache
  * value, the edit will fail silently. Callers should handle other problems by catching {@code
  * IOException} and responding appropriately.
+ *
  */
+
+
+//FileSystem: 使用Okio对File的封装，简化了IO操作  File(低级操作，步骤繁琐) -> Okio(封装) -> fileSystem 友好工具类
+//DiskLruCache.Editor: 添加了同步锁，并对FileSystem进行高度封装 FileSystem <- DiskLruCache.Entry/Editor -> source/sink(更少参数)
+//DiskLruCache.Entry: 维护着key对应的多个文件 对url进行维护
+//Cache.Entry: Responsejava对象与Okio流的序列化/反序列化类 Response（java对象) <- Cache.Entry -> source/sink(文件io)
+//DiskLruCache: 维护着文件的创建，清理，读取。内部有清理线程池，LinkedHashMap(也就是LruCache)
+//Cache: 被上级代码调用，提供透明的put/get操作，封装了缓存检查条件与DiskLruCache，开发者只用配置大小即可，不需要手动管理
+//Response/Requset: OkHttp的请求与回应
+
 public final class DiskLruCache implements Closeable, Flushable {
   static final String JOURNAL_FILE = "journal";
   static final String JOURNAL_FILE_TEMP = "journal.tmp";
@@ -167,8 +187,8 @@ public final class DiskLruCache implements Closeable, Flushable {
   private long nextSequenceNumber = 0;
 
   /** Used to run 'cleanupRunnable' for journal rebuilds. */
-  private final Executor executor;
-  private final Runnable cleanupRunnable = new Runnable() {
+  private final Executor executor;//创建线程池
+  private final Runnable cleanupRunnable = new Runnable() {//清理任务，每次在get/set后调用
     public void run() {
       synchronized (DiskLruCache.this) {
         if (!initialized | closed) {
@@ -176,6 +196,8 @@ public final class DiskLruCache implements Closeable, Flushable {
         }
 
         try {
+          //遍历LRU缓存(从旧到新进行遍历map),并删除文件
+          //直到小于MaxSize为止
           trimToSize();
         } catch (IOException ignored) {
           mostRecentTrimFailed = true;
@@ -251,6 +273,7 @@ public final class DiskLruCache implements Closeable, Flushable {
   }
 
   /**
+   * 在目录内部创建一个缓存，首次进入延迟初始化，并且不存在时将会被创建。
    * Create a cache which will reside in {@code directory}. This cache is lazily initialized on
    * first access and will be created if it does not exist.
    *
@@ -274,6 +297,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     return new DiskLruCache(fileSystem, directory, appVersion, valueCount, maxSize, executor);
   }
 
+  //创建一个缓存资源，读一些参数出来进行判断。readJournalLine
   private void readJournal() throws IOException {
     BufferedSource source = Okio.buffer(fileSystem.source(journalFile));
     try {
@@ -303,7 +327,7 @@ public final class DiskLruCache implements Closeable, Flushable {
       redundantOpCount = lineCount - lruEntries.size();
 
       // If we ended on a truncated line, rebuild the journal before appending to it.
-      if (!source.exhausted()) {
+      if (!source.exhausted()) {//如果没有更多的资源字节 则返回true
         rebuildJournal();
       } else {
         journalWriter = newJournalWriter();
@@ -387,6 +411,7 @@ public final class DiskLruCache implements Closeable, Flushable {
   }
 
   /**
+   * 创建一个新的journal 减少多余的信息
    * Creates a new journal that omits redundant information. This replaces the current journal if it
    * exists.
    */
@@ -786,11 +811,11 @@ public final class DiskLruCache implements Closeable, Flushable {
     };
   }
 
-  /** A snapshot of the values for an entry. */
+  /**  entry与Value的映射  A snapshot of the values for an entry. */
   public final class Snapshot implements Closeable {
     private final String key;
-    private final long sequenceNumber;
-    private final Source[] sources;
+    private final long sequenceNumber;//有序的的值
+    private final Source[] sources; //提供一个byte Stream
     private final long[] lengths;
 
     Snapshot(String key, long sequenceNumber, Source[] sources, long[] lengths) {
@@ -812,7 +837,12 @@ public final class DiskLruCache implements Closeable, Flushable {
       return DiskLruCache.this.edit(key, sequenceNumber);
     }
 
-    /** Returns the unbuffered stream with the value for {@code index}. */
+    /**
+     * 读取场景，需要获取快照，
+     new Entry(snapshot.getSource(ENTRY_METADATA));
+     BufferedSource metadata = Okio.buffer(snapshot.getSource(ENTRY_METADATA));
+     Source source = snapshot.getSource(ENTRY_BODY);
+     * Returns the unbuffered stream with the value for {@code index}. */
     public Source getSource(int index) {
       return sources[index];
     }
@@ -829,8 +859,9 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
   }
 
-  /** Edits the values for an entry. */
+  /**为一个entry编辑一个value Edits the values for an entry. */
   public final class Editor {
+    //对FileSystem进一步封装。以Entry为参数，操控Entry中维护的数组，对外暴露source/sink，为上层的java对象与文件的转换提供基于okio流操作
     final Entry entry;
     final boolean[] written;
     private boolean done;
@@ -841,6 +872,9 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
 
     /**
+     * 阻止正常完成的editor。当edit发生IO异常，或editor是active，但目标entry已经被evicted驱逐。
+     * 删除editor创建的文件，阻止新文件被创建。
+     * 注意 editor已经被detached
      * Prevents this editor from completing normally. This is necessary either when the edit causes
      * an I/O error, or if the target entry is evicted while this editor is active. In either case
      * we delete the editor's created files and prevent new files from being created. Note that once
@@ -860,6 +894,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
 
     /**
+     * 返回一个未缓存的输入流去read最后一次commit的Value，或null（如果没有Value被提交）
      * Returns an unbuffered input stream to read the last committed value, or null if no value has
      * been committed.
      */
@@ -880,6 +915,10 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
 
     /**
+     * 有2个写入场景 editor.newSink(ENTRY_BODY)；写入末位是1(Body)的文件，是序列化的过程
+     * BufferedSink sink = Okio.buffer(editor.newSink(ENTRY_METADATA)); 末位是0(元信息)，存二进制的过程
+     *
+     * 返回一个新的未缓存的输出流通过index写到Value中。写文件时有errors, edit会中断，但不抛出异常。
      * Returns a new unbuffered output stream to write the value at {@code index}. If the underlying
      * output stream encounters errors when writing to the filesystem, this edit will be aborted
      * when {@link #commit} is called. The returned output stream does not throw IOExceptions.
@@ -913,6 +952,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
 
     /**
+     * 为reader提交Edit。释放edit lock使另一个edit开始相同的key
      * Commits this edit so it is visible to readers.  This releases the edit lock so another edit
      * may be started on the same key.
      */
@@ -973,7 +1013,9 @@ public final class DiskLruCache implements Closeable, Flushable {
     /** The sequence number of the most recently committed edit to this entry. */
     long sequenceNumber;
 
-    Entry(String key) {
+    Entry(String key) {  //针对没一个url对应的文件进行维护，内部维护了2个File数组，每个url对应2~4个文件
+      // 文件命名规则 {md5(url) + {0,1}} 分别表示entry_metadata, entry_body
+
       this.key = key;
 
       lengths = new long[valueCount];
