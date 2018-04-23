@@ -199,17 +199,18 @@ public final class ConnectionPool {
    * -1 if no further cleanups are required.
    */
   long cleanup(long now) {
-    int inUseConnectionCount = 0;
-    int idleConnectionCount = 0;
-    RealConnection longestIdleConnection = null;
-    long longestIdleDurationNs = Long.MIN_VALUE;
+    int inUseConnectionCount = 0;//活跃的连接数
+    int idleConnectionCount = 0;//空闲连接数
+    RealConnection longestIdleConnection = null;//空闲连接
+    long longestIdleDurationNs = Long.MIN_VALUE;//最长空闲连接时间 5min
 
     // Find either a connection to evict, or the time that the next eviction is due.
     synchronized (this) {
+      //遍历 deque中所有RealConnection，
       for (Iterator<RealConnection> i = connections.iterator(); i.hasNext(); ) {
         RealConnection connection = i.next();
 
-        // If the connection is in use, keep searching.
+        /** 标记出idle连接，如果连接是活跃的就继续search。 If the connection is in use, keep searching. */
         if (pruneAndGetAllocationCount(connection, now) > 0) {
           inUseConnectionCount++;
           continue;
@@ -217,7 +218,7 @@ public final class ConnectionPool {
 
         idleConnectionCount++;
 
-        // If the connection is ready to be evicted, we're done.
+        /**选择排序，找到idle连接，和duration。 If the connection is ready to be evicted, we're done. */
         long idleDurationNs = now - connection.idleAtNanos;
         if (idleDurationNs > longestIdleDurationNs) {
           longestIdleDurationNs = idleDurationNs;
@@ -227,17 +228,19 @@ public final class ConnectionPool {
 
       if (longestIdleDurationNs >= this.keepAliveDurationNs
           || idleConnectionCount > this.maxIdleConnections) {
+        /** keepalive时间 > 5min || idle连接数 > 5 找到idle连接，并将其移除*/
         // We've found a connection to evict. Remove it from the list, then close it below (outside
         // of the synchronized block).
         connections.remove(longestIdleConnection);
       } else if (idleConnectionCount > 0) {
-        // A connection will be ready to evict soon.
+        /** 0 < idle连接数 < 5 , 返回此连接即将到期的时间，供下次清理。*/
+        //A connection will be ready to evict soon.
         return keepAliveDurationNs - longestIdleDurationNs;
-      } else if (inUseConnectionCount > 0) {
+      } else if (inUseConnectionCount > 0) { /** 活跃连接 > 0 */
         // All connections are in use. It'll be at least the keep alive duration 'til we run again.
         return keepAliveDurationNs;
       } else {
-        // No connections, idle or in use.
+        // 没有任何连接 No connections, idle or in use.
         cleanupRunning = false;
         return -1;
       }
@@ -249,18 +252,20 @@ public final class ConnectionPool {
     return 0;
   }
 
+
   /**
    * Prunes any leaked allocations and then returns the number of remaining live allocations on
    * {@code connection}. Allocations are leaked if the connection is tracking them but the
    * application code has abandoned them. Leak detection is imprecise and relies on garbage
    * collection.
    */
+  //引用计数，如果引用全部为空，返回0，则立刻清理
   private int pruneAndGetAllocationCount(RealConnection connection, long now) {
     List<Reference<StreamAllocation>> references = connection.allocations;
-    for (int i = 0; i < references.size(); ) {
+    for (int i = 0; i < references.size(); ) {//遍历 弱引用，
       Reference<StreamAllocation> reference = references.get(i);
 
-      if (reference.get() != null) {
+      if (reference.get() != null) {//如果正在被使用，i++ 进入下次循环。是否null 由ConnectionBecameIdle release控制
         i++;
         continue;
       }
@@ -272,10 +277,11 @@ public final class ConnectionPool {
           + " was leaked. Did you forget to close a response body?";
       Platform.get().logCloseableLeak(message, streamAllocRef.callStackTrace);
 
-      references.remove(i);
+      references.remove(i); //不被引用则remove
       connection.noNewStreams = true;
 
       // If this was the last allocation, the connection is eligible for immediate eviction.
+      //如果所有分配的流均没了，标记为已经距离现在空闲了5分钟
       if (references.isEmpty()) {
         connection.idleAtNanos = now - keepAliveDurationNs;
         return 0;
@@ -283,5 +289,10 @@ public final class ConnectionPool {
     }
 
     return references.size();
+
+    /**使用filter实现 这个功能 */
+//    return references.stream().filter(reference -> {
+//      return !reference.get() == null;
+//    }).count();
   }
 }
