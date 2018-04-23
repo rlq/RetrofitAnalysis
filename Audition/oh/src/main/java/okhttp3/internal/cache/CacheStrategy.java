@@ -45,13 +45,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  * 浏览器请求 —— 有缓存，是否过期？
  * 否—— 从缓存读取 —— 显示
  *
- * 是—— ETag —— 是 ——> 向web Server Request 带if—None-Match ——————————————————
- *      | 否                                                                |
- *      Last_Modified —— 是 ——>  向web Server Request 带if—Modified-Since ————
- *      | 否                                                                |
- *      请求响应，缓存协商           <—————————  200   ————————————————200 or 304
- *      |                                                                304|
- *      显示                       <—————————  从缓存中读取   ——————————————————
+ *
  *
  * 类似mapping操作，将2个值输入，再将2个值输出
  * Input : request, cacheCandidate
