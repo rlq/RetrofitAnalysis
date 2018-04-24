@@ -51,15 +51,17 @@ import static okhttp3.internal.platform.Platform.WARN;
  * and a fixed number of values. Each key must match the regex <strong>[a-z0-9_-]{1,64}</strong>.
  * Values are byte sequences, accessible as streams or files. Each value must be between {@code 0}
  * and {@code Integer.MAX_VALUE} bytes in length.
- *
- * 文件目录中缓存数据。目录必须是exclusive专有的 对于缓存，缓存必须从他的目录中删除或覆盖。同一时间使用同一个缓存目录的多个操作是会异常的
- * <p>The cache stores its data in a directory on the filesystem. This directory must be exclusive
+ */
+//文件目录中缓存数据。目录必须是exclusive专有的 对于缓存，缓存必须从他的目录中删除或覆盖。同一时间使用同一个缓存目录的多个操作是会异常的
+
+/** <p>The cache stores its data in a directory on the filesystem. This directory must be exclusive
  * to the cache; the cache may delete or overwrite files from its directory. It is an error for
  * multiple processes to use the same cache directory at the same time.
- *
- * 缓存限制了存储到文件中的字节数。存储的字节数 > limit, 缓存将会被移除entries直到满足limit。
- * 限制不是严格的：缓存可能暂时超出过后就会删除。 限制不包括系统的overhead 或 缓存日志，所以对空间敏感的app应该设置一个稳妥的limit。
- * <p>This cache limits the number of bytes that it will store on the filesystem. When the number of
+ */
+//缓存限制了存储到文件中的字节数。存储的字节数 > limit, 缓存将会被移除entries直到满足limit。
+//限制不是严格的：缓存可能暂时超出过后就会删除。 限制不包括系统的overhead 或 缓存日志，所以对空间敏感的app应该设置一个稳妥的limit。
+
+/** <p>This cache limits the number of bytes that it will store on the filesystem. When the number of
  * stored bytes exceeds the limit, the cache will remove entries in the background until the limit
  * is satisfied. The limit is not strict: the cache may temporarily exceed it while waiting for
  * files to be deleted. The limit does not include filesystem overhead or the cache journal so
@@ -67,44 +69,44 @@ import static okhttp3.internal.platform.Platform.WARN;
  *
  * <p>Clients call {@link #edit} to create or update the values of an entry. An entry may have only
  * one editor at one time; if a value is not available to be edited then {@link #edit} will return
- * null. Client必须调用edit创建或更新一个entry的values。一个Entry可能有同一时间有一个editor。一个value不可用则return null。
+ * null.
+ * @Client必须调用edit创建或更新一个entry的values。一个Entry可能有同一时间有一个editor。一个value不可用则return null。
  *
  * <ul>
  *     <li>When an entry is being <strong>created</strong> it is necessary to supply a full set of
  *         values; the empty value should be used as a placeholder if necessary.
- *         一个entry为提供Value集合而被创建。一个empty Value应该被一个占位符去使用
+ *         @一个entry为提供Value集合而被创建。一个empty Value应该被一个占位符去使用
  *     <li>When an entry is being <strong>edited</strong>, it is not necessary to supply data for
  *         every value; values default to their previous value.
- *         一个entry被创建，不需要提供每一个Value的数据，Value默认是他们的前一个值。
+ *         @一个entry被创建，不需要提供每一个Value的数据，Value默认是他们的前一个值。
  * </ul>
  *
  * <p>Every {@link #edit} call must be matched by a call to {@link Editor#commit} or {@link
  * Editor#abort}. Committing is atomic: a read observes the full set of values as they were before
  * or after the commit, but never a mix of values.
- * 每一个edit调用都必须通过调用commit abort去匹配。commit是自动的。当他们commit前后会监听全部的values。
+ * @每一个edit调用都必须通过调用commit abort去匹配。commit是自动的。当他们commit前后会监听全部的values。
  *
  * <p>Clients call {@link #get} to read a snapshot of an entry. The read will observe the value at
  * the time that {@link #get} was called. Updates and removals after the call do not impact ongoing
  * reads.
- * Client调用get去read 一个entry的snapshot。read监听同一时间被调用的value。调用没有冲击不间断的read后更新和移除。
- *
- *  这个类岁IO是宽容的。如果文件从系统中丢失，相关的entries将会从缓存中dropped。
- *  如果一个error在写缓存Value时发生，edit静默失败。调用者应该通过catch IO异常处理问题 并且有恰当的响应。
- * <p>This class is tolerant宽容的，能耐的 of some I/O errors. If files are missing from the filesystem, the
+ * @Client调用get去read 一个entry的snapshot。read监听同一时间被调用的value。调用没有冲击不间断的read后更新和移除。
+ */
+//这个类岁IO是宽容的。如果文件从系统中丢失，相关的entries将会从缓存中dropped。
+//如果一个error在写缓存Value时发生，edit静默失败。调用者应该通过catch IO异常处理问题 并且有恰当的响应。
+ /* <p>This class is tolerant宽容的，能耐的 of some I/O errors. If files are missing from the filesystem, the
  * corresponding相应的 entries will be dropped from the cache. If an error occurs while writing a cache
  * value, the edit will fail silently. Callers should handle other problems by catching {@code
  * IOException} and responding appropriately.
  *
  */
 
-
 //FileSystem: 使用Okio对File的封装，简化了IO操作  File(低级操作，步骤繁琐) -> Okio(封装) -> fileSystem 友好工具类
+//Cache.Entry: Responsejava对象与Okio流的序列化/反序列化类 Response（java对象) <- Cache.Entry -> source/sink(文件io)
+//Cache: 被上级代码调用，提供透明的put/get操作，封装了缓存检查条件与DiskLruCache，开发者只用配置大小即可，不需要手动管理
+
+//DiskLruCache: 维护着文件的创建，清理，读取。内部有清理线程池，LinkedHashMap(也就是LruCache)
 //DiskLruCache.Editor: 添加了同步锁，并对FileSystem进行高度封装 FileSystem <- DiskLruCache.Entry/Editor -> source/sink(更少参数)
 //DiskLruCache.Entry: 维护着key对应的多个文件 对url进行维护
-//Cache.Entry: Responsejava对象与Okio流的序列化/反序列化类 Response（java对象) <- Cache.Entry -> source/sink(文件io)
-//DiskLruCache: 维护着文件的创建，清理，读取。内部有清理线程池，LinkedHashMap(也就是LruCache)
-//Cache: 被上级代码调用，提供透明的put/get操作，封装了缓存检查条件与DiskLruCache，开发者只用配置大小即可，不需要手动管理
-//Response/Requset: OkHttp的请求与回应
 
 public final class DiskLruCache implements Closeable, Flushable {
   static final String JOURNAL_FILE = "journal";
@@ -859,7 +861,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
   }
 
-  /**为一个entry编辑一个value Edits the values for an entry. */
+  /**为一个entry编辑values. Edits the values for an entry. */
   public final class Editor {
     //对FileSystem进一步封装。以Entry为参数，操控Entry中维护的数组，对外暴露source/sink，为上层的java对象与文件的转换提供基于okio流操作
     final Entry entry;
@@ -996,6 +998,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     }
   }
 
+  // 传入 key(Request url) 通过加.tmp, FileSystem --> source --> Snapshot
   private final class Entry {
     final String key;
 
@@ -1013,7 +1016,7 @@ public final class DiskLruCache implements Closeable, Flushable {
     /** The sequence number of the most recently committed edit to this entry. */
     long sequenceNumber;
 
-    Entry(String key) {  //针对没一个url对应的文件进行维护，内部维护了2个File数组，每个url对应2~4个文件
+    Entry(String key) {  //针对每一个url对应的文件进行维护，内部维护了2个File数组，每个url对应2~4个文件
       // 文件命名规则 {md5(url) + {0,1}} 分别表示entry_metadata, entry_body
 
       this.key = key;
@@ -1072,7 +1075,7 @@ public final class DiskLruCache implements Closeable, Flushable {
       long[] lengths = this.lengths.clone(); // Defensive copy since these can be zeroed out.
       try {
         for (int i = 0; i < valueCount; i++) {
-          sources[i] = fileSystem.source(cleanFiles[i]);
+          sources[i] = fileSystem.source(cleanFiles[i]);/* FileSystem --> source */
         }
         return new Snapshot(key, sequenceNumber, sources, lengths);
       } catch (FileNotFoundException e) {

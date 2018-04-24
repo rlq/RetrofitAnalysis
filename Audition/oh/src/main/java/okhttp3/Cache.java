@@ -57,16 +57,19 @@ import okio.Source;
  * 3 页面置换算法（page replacement algorithm）将旧页面去掉换成新的页面，LFU最近不常用Least frequently used，
  * LRU最近最少使用 least recently used. FIFO先进先出，NMRU 非最近使用
  * 4 如果没有命中缓存，就需要从原始地址获取，这个步骤——回源。CDN厂商会标注"回源率"作为卖点
- *
- * Caches HTTP and HTTPS responses to the filesystem so they may be reused, saving time and
+ */
+
+/** Caches HTTP and HTTPS responses to the filesystem so they may be reused, saving time and
  * bandwidth.
- * Response 缓存 到filesystem(作为缓存载体)中，这些缓存会被再次使用，以节约时间和带宽。
- * 使用LRU作为页面置换算法（封装了LinkedHashMap）
- *
- * <h3>Cache Optimization</h3>
+ */
+ // Response 缓存 到filesystem(作为缓存载体)中，这些缓存会被再次使用，以节约时间和带宽。
+ // 使用LRU作为页面置换算法（封装了LinkedHashMap）
+
+
+/** * <h3>Cache Optimization</h3>
  *
  * <p>To measure cache effectiveness, this class tracks three statistics:
- * 缓存有效性进行评估,这个类跟踪三个统计:  Request Count，Network Count， Hit Count
+ * @缓存有效性进行评估,这个类跟踪三个统计:  Request Count，Network Count， Hit Count
  * <ul>
  *     <li><strong>{@linkplain #requestCount() Request Count:}</strong> the number of HTTP
  *         requests issued since this cache was created.
@@ -74,30 +77,33 @@ import okio.Source;
  *         requests that required network use.
  *     <li><strong>{@linkplain #hitCount() Hit Count:}</strong> the number of those requests
  *         whose responses were served by the cache.
- *         这些请求的响应被缓存服务过的数量
+ *         @这些请求的响应被缓存服务过的数量
  * </ul>
  *
- * 有时一个request在一个缓存hit下得到Result。如果缓存包含一个Response的老的copy，Client将会issue一个GET。
+ * @有时一个request在一个缓存hit下得到Result。如果缓存包含一个Response的老的copy，Client将会issue一个GET。
  * Server send一个已改变的Response，或 如果Client copy Response依然有效就会发一个简短的 not modified。
  * 这样的responses增加了network 和 hit count。
  * Sometimes a request will result in a conditional cache hit. If the cache contains a stale copy of
  * the response, the client will issue a conditional {@code GET}. The server will then send either
  * the updated response if it has changed, or a short 'not modified' response if the client's copy
  * is still valid. Such responses increment both the network count and hit count.
- *
- * 最好的办法是通过配置web服务器返回的可缓存的Response 改善缓存的hit rate 点击率。
+ */
+
+ /** @最好的办法是通过配置web服务器返回的可缓存的Response 改善缓存的hit rate 点击率。
  * 尽管client 遵从所有的cache 头，但他不能缓存一部分Responses.
+
  * <p>The best way to improve the cache hit rate is by configuring the web server to return
  * cacheable responses. Although this client honors all <a
  * href="http://tools.ietf.org/html/rfc7234">HTTP/1.1 (RFC 7234)</a> cache headers, it doesn't cache
  * partial responses.
  *
  * <h3>Force a Network Response</h3>
- * 强制network Response
+ * @强制network Response
  * <p>In some situations, such as after a user clicks a 'refresh' button, it may be necessary to
  * skip the cache, and fetch data directly from the server. To force a full refresh, add the {@code
  * no-cache} directive: <pre>   {@code
- * 许多场合，比如一个用户点击 刷新按钮，可能跳过缓存，直接从服务器抓取数据。为了强制一个全部的刷新，添加了no-cache
+ * @许多场合，比如一个用户点击
+   @刷新按钮，可能跳过缓存，直接从服务器抓取数据。为了强制一个全部的刷新，添加了no-cache
  *
  *   Request request = new Request.Builder()
  *       .cacheControl(new CacheControl.Builder().noCache().build())
@@ -105,7 +111,7 @@ import okio.Source;
  *       .build();
  * }</pre>
  *
- * 被Server 强制缓存response是有效的，使用更多的高效max-age=0的命令。
+ * @被Server强制缓存response是有效的，使用更多的高效max-age=0的命令。
  * If it is only necessary to force a cached response to be validated by the server, use the more
  * efficient {@code max-age=0} directive instead: <pre>   {@code
  *
@@ -118,13 +124,13 @@ import okio.Source;
  * }</pre>
  *
  * <h3>Force a Cache Response</h3>
- * 强制缓存响应
+ * @强制缓存响应
  * <p>Sometimes you'll want to show resources if they are available immediately, but not otherwise.
  * This can be used so your application can show <i>something</i> while waiting for the latest data
  * to be downloaded. To restrict a request to locally-cached resources, add the {@code
  * only-if-cached} directive: <pre>   {@code
- * 有时你想直接展示可利用的资源，反之亦然(不可利用就不显示)。
- * 这需要你的app 等待最后的数据被下载后 显示出来。为了限制本地缓存资源，添加only-if-cached
+ * @有时你想直接展示可利用的资源，反之亦然(不可利用就不显示)。
+ * @这需要你的app等待最后的数据被下载后_显示出来。为了限制本地缓存资源，添加only-if-cached
  *     Request request = new Request.Builder()
  *         .cacheControl(new CacheControl.Builder()
  *             .onlyIfCached()
@@ -141,8 +147,8 @@ import okio.Source;
  * This technique works even better in situations where a stale response is better than no response.
  * To permit stale cached responses, use the {@code max-stale} directive with the maximum staleness
  * in seconds: <pre>   {@code
- * 这个技术更好地适用这样一种场景 一个老的Response好于no Response。
- * 允许的老的缓存Response，则使用 max-stale。
+ * @这个技术更好地适用这样一种场景:一个老的Response好于noResponse。
+ * @允许的老的缓存Response，则使用 max-stale。
  *
  *   Request request = new Request.Builder()
  *       .cacheControl(new CacheControl.Builder()
@@ -155,8 +161,8 @@ import okio.Source;
  * <p>The {@link CacheControl} class can configure request caching directives and parse response
  * caching directives. It even offers convenient constants {@link CacheControl#FORCE_NETWORK} and
  * {@link CacheControl#FORCE_CACHE} that address the use cases above.
- * CacheControl类配置 Request cache指令，解析response cache指令。
- * 提供了方便的常量  FORCE_NETWORK  FORCE_CACHE
+ * @CacheControl类配置 Request cache指令，解析response cache指令。
+ * @提供了方便的常量  FORCE_NETWORK  FORCE_CACHE
  */
 public final class Cache implements Closeable, Flushable {
   private static final int VERSION = 201105;
@@ -211,7 +217,8 @@ public final class Cache implements Closeable, Flushable {
     return ByteString.encodeUtf8(url.toString()).md5().hex();
   }
 
-  @Nullable
+   //将Request的url——>key 传给DiskLruCache ——> snapshot ——> Cache.Entry(snapshot.getSource) ——> entry.response
+   @Nullable
   Response get(Request request) {
     String key = key(request.url());
     DiskLruCache.Snapshot snapshot;
@@ -243,6 +250,7 @@ public final class Cache implements Closeable, Flushable {
     return response;
   }
 
+  //response ——> requestMethod(只缓存GET) ——> Cache.Entry(response)  ——>  DiskLruCache.Editor  ——> CacheRequest
   @Nullable CacheRequest put(Response response) {
     String requestMethod = response.request().method();
 
@@ -254,6 +262,7 @@ public final class Cache implements Closeable, Flushable {
       }
       return null;
     }
+    /* 只缓存GET请求，技术上是可以缓存Head POST请求的，但复杂性较高，并且效益很低。 */
     if (!requestMethod.equals("GET")) {
       // Don't cache non-GET responses. We're technically allowed to cache
       // HEAD requests and some POST requests, but the complexity of doing
@@ -284,6 +293,8 @@ public final class Cache implements Closeable, Flushable {
     cache.remove(key(request.url()));
   }
 
+  /**response --> DiskLruCache.Snapshot ——> DiskLruCache.Editor*/
+  /**request --> Cache.Entry --> entry.writeTo(editor)*/
   void update(Response cached, Response network) {
     Entry entry = new Entry(network);
     DiskLruCache.Snapshot snapshot = ((CacheResponseBody) cached.body()).snapshot;
@@ -452,6 +463,7 @@ public final class Cache implements Closeable, Flushable {
     return requestCount;
   }
 
+  // Sink body()，abort() 的实现, editor --> Sink
   private final class CacheRequestImpl implements CacheRequest {
     private final DiskLruCache.Editor editor;
     private Sink cacheOut;
@@ -460,8 +472,8 @@ public final class Cache implements Closeable, Flushable {
 
     CacheRequestImpl(final DiskLruCache.Editor editor) {
       this.editor = editor;
-      this.cacheOut = editor.newSink(ENTRY_BODY);
-      this.body = new ForwardingSink(cacheOut) {
+      this.cacheOut = editor.newSink(ENTRY_BODY); //editor 创建 Entry_body Sink
+      this.body = new ForwardingSink(cacheOut) { //使用Entry_body Sink 创建 ForwardingSink
         @Override public void close() throws IOException {
           synchronized (Cache.this) {
             if (done) {
@@ -496,7 +508,7 @@ public final class Cache implements Closeable, Flushable {
     }
   }
 
-  private static final class Entry {//Responsejava对象与Okio流的 序列化/反序列化类
+  private static final class Entry {//Response对象与Okio流的 序列化/反序列化类
 //    Response（java对象) <- Cache.Entry -> source/sink(文件io)  如果信息本身是二进制，直接写入到文件中。文本，按照预设格式写入
 
 
@@ -567,27 +579,27 @@ public final class Cache implements Closeable, Flushable {
      */
     Entry(Source in) throws IOException {
       try {
-        BufferedSource source = Okio.buffer(in);
-        url = source.readUtf8LineStrict();
+        BufferedSource source = Okio.buffer(in);//数据流 Source转为BufferedSource
+        url = source.readUtf8LineStrict();//读出Source的一行 得到url RequestMethod
         requestMethod = source.readUtf8LineStrict();
         Headers.Builder varyHeadersBuilder = new Headers.Builder();
-        int varyRequestHeaderLineCount = readInt(source);
+        int varyRequestHeaderLineCount = readInt(source);//请求头 行数
         for (int i = 0; i < varyRequestHeaderLineCount; i++) {
-          varyHeadersBuilder.addLenient(source.readUtf8LineStrict());
+          varyHeadersBuilder.addLenient(source.readUtf8LineStrict());//将请求头 add到Headers
         }
-        varyHeaders = varyHeadersBuilder.build();
+        varyHeaders = varyHeadersBuilder.build();//得到 Request Headers
 
-        StatusLine statusLine = StatusLine.parse(source.readUtf8LineStrict());
+        StatusLine statusLine = StatusLine.parse(source.readUtf8LineStrict());//读出Source的一行 解析Http的status 行，获得一系列参数 协议，code，msg
         protocol = statusLine.protocol;
         code = statusLine.code;
         message = statusLine.message;
         Headers.Builder responseHeadersBuilder = new Headers.Builder();
         int responseHeaderLineCount = readInt(source);
         for (int i = 0; i < responseHeaderLineCount; i++) {
-          responseHeadersBuilder.addLenient(source.readUtf8LineStrict());
+          responseHeadersBuilder.addLenient(source.readUtf8LineStrict());//继续读Source，add到Response Headers
         }
-        String sendRequestMillisString = responseHeadersBuilder.get(SENT_MILLIS);
-        String receivedResponseMillisString = responseHeadersBuilder.get(RECEIVED_MILLIS);
+        String sendRequestMillisString = responseHeadersBuilder.get(SENT_MILLIS);//request time
+        String receivedResponseMillisString = responseHeadersBuilder.get(RECEIVED_MILLIS);//response time
         responseHeadersBuilder.removeAll(SENT_MILLIS);
         responseHeadersBuilder.removeAll(RECEIVED_MILLIS);
         sentRequestMillis = sendRequestMillisString != null
@@ -596,9 +608,9 @@ public final class Cache implements Closeable, Flushable {
         receivedResponseMillis = receivedResponseMillisString != null
             ? Long.parseLong(receivedResponseMillisString)
             : 0L;
-        responseHeaders = responseHeadersBuilder.build();
+        responseHeaders = responseHeadersBuilder.build();//response headers
 
-        if (isHttps()) {
+        if (isHttps()) {//https 进行Tls 三次握手安全认证
           String blank = source.readUtf8LineStrict();
           if (blank.length() > 0) {
             throw new IOException("expected \"\" but was \"" + blank + "\"");
@@ -758,6 +770,7 @@ public final class Cache implements Closeable, Flushable {
     }
   }
 
+  /** 继承ResponseBody，<p> 得到 Snapshot getSource,  contentType， length</p> */
   private static class CacheResponseBody extends ResponseBody {
     final DiskLruCache.Snapshot snapshot;
     private final BufferedSource bodySource;
