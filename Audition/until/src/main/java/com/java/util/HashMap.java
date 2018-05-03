@@ -187,7 +187,7 @@ import com.java.util.function.Function;
 //  5.2 HashMap 继承于AbstractMap,实现了Map接口。Map是Key value键值对接口，AbstractMap实现了键值对通用函数接口。
 /*
     实现"拉链法"重要的成员变量：table size threshold loadFactor modCount
-    table 是一个Node[]数组类型，Node是实现Map.Entry的一个单向链表。Hash表的键值对都存储在Node数组中，这是拉链法解决Hash冲突的基础。
+    table 是一个Node[]数组类型，Node是实现Map.Entry的一个单向链表。Hash表的键值对都存储在Node数组中，这是链表法解决Hash冲突的基础。
     threshold是HashMap的阈值，用于判断是否需要调整hashMap的容量。 threshold = 容量*加载因子，当HashMap中存储数据达到时 rehash
     modCount 实现fail-fast机制
 */
@@ -203,8 +203,9 @@ import com.java.util.function.Function;
 // 5.4 Hash算法，扩容机制。
 
 
-// 6 HashMap  1.7 VS 1.8
+// 6 HashMap  1.7 VS 1.8 参考 https://www.cnblogs.com/stevenczp/p/7028071.html
 /*
+    1>
     1.7 存储数据 Entry数组；
     hashCode相同，会把Key定位到Entry数组的同一格子里，形成1个链表。链表会很长，影响put/get操作的遍历。
     时间复杂度 最差 O(n)
@@ -213,15 +214,19 @@ import com.java.util.function.Function;
     HashCode相同，key会被定位到Node数组的同一格子里；<8则行程1个链表；>8 会调用treeifBin，将链表转为红黑树。
     时间复杂度 最差 O(logn)——红黑树查找某个元素
 
+    2>
     1.8 的key必须实现Compare接口，否则慢于1.7
-
-
     简单的测试数据如下： 向HashMap中put/get 1w条hashcode相同的对象
     JDK1.7:                   put 0.26s，get 0.55s
     JDK1.8（未实现Compare接口）：put 0.92s，get 2.1s
 
     但是如果正确的实现了Compare接口，那么JDK1.8中的HashMap的性能有巨大提升，这次put/get 100W条hashcode相同的对象
     JDK1.8（正确实现Compare接口，）：put/get大概开销都在320ms左右
+
+    3> 为了避免Hash Collision DoS攻击
+    Java中String的hashcode函数的强度很弱，有心人可以很容易的构造出大量hashcode相同的String对象。
+    如果向服务器一次提交数万个hashcode相同的字符串参数，那么可以很容易的卡死JDK1.7版本的服务器。
+     但是String正确的实现了Compare接口，因此在JDK1.8版本的服务器上，Hash Collision DoS不会造成不可承受的开销。
 
  */
 
@@ -428,8 +433,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * never be used in index calculations because of table bounds.
      */
     static final int hash(Object key) {
+        //分3步走 1 获取 hashCode 值 ；2 h >>> 16 高位参与运算(高16位 异或 地16位)； 3取模运算
         int h;
         return (key == null) ? 0 : (h = key.hashCode()) ^ (h >>> 16);
+    }
+
+    //jdk1.7的源码，jdk1.8 没有这块代码，但实现原理相同，这是3 取模运算
+    static int indexFor(int h, int length) {
+        return h & (length - 1);//length 总是2的N次方， h & (length - 1)= 对length取模，也就是h/length,但&比%效率更高。
     }
 
     /**
@@ -718,31 +729,32 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                    boolean evict) {
         Node<K,V>[] tab; Node<K,V> p; int n, i;
-        if ((tab = table) == null || (n = tab.length) == 0)//table 是否为空，或没有值——resize
+        if ((tab = table) == null || (n = tab.length) == 0)//table 是否为空，或没有值——resize扩容，创建
             n = (tab = resize()).length;
-        if ((p = tab[i = (n - 1) & hash]) == null)//最后一个值 的hash值 为null -- newNode
+        if ((p = tab[i = (n - 1) & hash]) == null)//(n-1)&hash 是计算index 为null直接插入 -- newNode
             tab[i] = newNode(hash, key, value, null);
         else {
             Node<K,V> e; K k;
             if (p.hash == hash &&
-                ((k = p.key) == key || (key != null && key.equals(k))))//hash,key都一致，e=p
+                ((k = p.key) == key || (key != null && key.equals(k))))//hash,key存在则直接覆盖Value
                 e = p;
-            else if (p instanceof TreeNode)//判断是否为TreeNode
-                e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);//通过TreeNode put
-            else {
+            else if (p instanceof TreeNode)//判断是否为TreeNode红黑树
+                e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);//通过TreeNode put直接插入
+            else {//不是红黑树，则为链表，开始遍历
                 for (int binCount = 0; ; ++binCount) {
                     if ((e = p.next) == null) {
                         p.next = newNode(hash, key, value, null);
-                        if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
+                        if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st 链表长度>8转换为红黑树
                             treeifyBin(tab, hash);
                         break;
                     }
                     if (e.hash == hash &&
-                        ((k = e.key) == key || (key != null && key.equals(k))))
+                        ((k = e.key) == key || (key != null && key.equals(k))))//<8 的情况 key已经存在，直接覆盖value
                         break;
                     p = e;
                 }
             }
+            //value值修改过程
             if (e != null) { // existing mapping for key
                 V oldValue = e.value;
                 if (!onlyIfAbsent || oldValue == null)
@@ -752,10 +764,44 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             }
         }
         ++modCount;
-        if (++size > threshold)
+        if (++size > threshold)//超过最大容量 就扩容
             resize();
         afterNodeInsertion(evict);
         return null;
+    }
+
+
+    //扩容机制——重新计算容量，java普通数组要扩容只能换一个大点的数组，无法自动扩容的。
+    void resize(int newCapacity) {//jdk 1.7 源码 和JDK1.8原理差不多 使用一个容量大的数组 代替已有的容量小的数组
+        Entry[] oldTable = table;
+        int oldCapacity = oldTable.length;
+        if (oldCapacity == MAXIMUM_CAPACITY) {//扩容前大小已经达到 2^30，则直接修改阈值2^31-1，以后就不会再扩容了。
+            threshold = Integer.MAX_VALUE;
+            return;
+        }
+
+        Entry[] newTable = new Entry[newCapacity];
+        transfer(newTable);//将数据转移到新的Entry数组中 将原有Entry数组的元素拷贝到新的Entry数组里。
+        table = newTable;
+        threshold = (int) (newCapacity * loadFactor);//修改阈值
+    }
+
+    void transfer(Entry[] newTable) {
+        Entry[] src = table;
+        int newCapacity = newTable.length;
+        for (int j = 0; j < src.length; j++) {//遍历 旧的Entry数组
+            Entry<K, V> e = src[j];
+            if (e != null) {
+                src[j] = null; //释放旧的对象医用
+                do {
+                    Entry<K, V> next = e.next;
+                    int i = indexFor(e.hash, newCapacity);//重新计算每个元素在数组中的位置
+                    e.next = newTable[i];//新元素总是会插入到单链表的头部，将每一个元素移到下一个位置，以便插入新数据
+                    newTable[i] = e;
+                    e = next;
+                } while ((e != null));
+            }
+        }
     }
 
     /**@初始化tablesize，如果为null，分配一个初始目标值。否则由于我们使用的是2的幂次扩展，所以元素必须保持相同的索引，或移动2的幂次抵消新表。
