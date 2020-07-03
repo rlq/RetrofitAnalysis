@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.lq.he.sum">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -19,6 +20,32 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+
+        <!--
+        使用startup,需注册Provider和Initializer<?>
+        如果有一个sdk3内部通过App Startup帮助使用者处理了初始化，
+        那么sdk3的AndroidManifest.xml文件中已经存在了InitializationProvider的provider标签，
+        此时会与app模块中的冲突，因此在app模块的provider标签中指明tools:node="merge"，
+        通过AndroidManifest.xml文件的合并机制。
+
+        通过tools:node="remove"来标记该初始化器。这样会在AndroidManifest.xml文件合并时将这个<meta-data>移除掉，
+        否则该初始化器仍会在Application中被初始化并标记为已经初始化，后面的懒加载将不执行任何初始化操作，相当于使懒加载失效了。
+        -->
+        <provider
+            android:authorities="${applicationId}.androidx-startup"
+            android:name="androidx.startup.InitializationProvider"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="com.lq.he.sum.startup.Sdk1Initializer"
+                android:value="@string/androidx_startup"/>
+            <meta-data
+                android:name="com.lq.he.sum.startup.Sdk2Initializer"
+                android:value="@string/androidx_startup"
+                tools:node="remove"/>
+        </provider>
+
     </application>
 
 </manifest>
