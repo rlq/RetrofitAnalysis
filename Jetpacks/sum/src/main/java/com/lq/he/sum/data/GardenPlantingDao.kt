@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 
+// 我的花园 种植的植物 Dao
 @Dao
 interface GardenPlantingDao {
 
