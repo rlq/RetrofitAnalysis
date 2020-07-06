@@ -1,4 +1,4 @@
-package com.lq.he.sum
+package com.lq.he.sum.home
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -7,12 +7,14 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.android.material.tabs.TabLayoutMediator
-import com.lq.he.sum.adapters.MY_GARDEN_PAGE_INDEX
-import com.lq.he.sum.adapters.PLANT_LIST_PAGE_INDEX
-import com.lq.he.sum.adapters.SunflowerPagerAdapter
+import com.lq.he.sum.R
+import com.lq.he.sum.home.adapters.MY_GARDEN_PAGE_INDEX
+import com.lq.he.sum.home.adapters.PLANT_LIST_PAGE_INDEX
+import com.lq.he.sum.home.adapters.SunflowerPagerAdapter
 import com.lq.he.sum.databinding.FragmentViewPagerBinding
 import java.lang.IndexOutOfBoundsException
 
+// 首页包含 我的花园种植的植物 + 植物目录
 class HomeViewPagerFragment: Fragment() {
 
     override fun onCreateView(
@@ -24,6 +26,7 @@ class HomeViewPagerFragment: Fragment() {
         val tabLayout = binding.tabs
         val viewPager = binding.viewPager
 
+        // 1个HomeFragment 内包含 GardenFragment + PlantListFragment
         viewPager.adapter = SunflowerPagerAdapter(this)
 
         TabLayoutMediator(tabLayout, viewPager) {
@@ -49,7 +52,7 @@ class HomeViewPagerFragment: Fragment() {
     private fun getTabTitle(position: Int): String? {
         return when (position) {
             MY_GARDEN_PAGE_INDEX -> getString(R.string.my_garden_title)
-            PLANT_LIST_PAGE_INDEX -> getString(R.string.plant_details_title)
+            PLANT_LIST_PAGE_INDEX -> getString(R.string.plant_list_title)
             else -> ""
         }
     }
