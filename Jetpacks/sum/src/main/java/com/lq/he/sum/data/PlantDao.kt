@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
+// 植物目录Dao，包含所有植物，通过plantId查某个植物，种植的植物总数
 @Dao
 interface PlantDao {
 
