@@ -104,7 +104,7 @@ dependencies {
  * https://mp.weixin.qq.com/s/op2BsXWI585qupjzDebzBg
  * 代码库 https://github.com/halohoop/SpeedUpGradleBuild2/blob/master/demo/build.gradle
  */
-
+/*
 def tmpSplits = null;
 android {
 
@@ -191,3 +191,4 @@ task hello {
         println tmpSplits.abi.enable
     }
 }
+*/
