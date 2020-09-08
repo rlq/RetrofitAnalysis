@@ -53,6 +53,16 @@ android {
 //    }
 }
 
+
+/**
+ * https://www.jianshu.com/p/8962d6ba936e
+ * api与implementation的区别
+ * 1. impl 使用本地依赖时，编译时长 <     api使用本地依赖
+ * 2. impl 使用本地依赖时，编译时长 不确定 api使用远程依赖
+ * 3. impl 使用本地依赖时，隐藏编译 VS    api使用本地依赖，编译不隔离
+ * 4. impl 使用远程依赖时，编译不隔离 VS   api使用远程依赖时，编译不隔离
+ * ps 编译不隔离，就是指app 远程impl lib1, lib2 远程impl lib2；那么app中的代码可以调用lib2Class
+ */
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
