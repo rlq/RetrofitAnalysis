@@ -46,6 +46,27 @@ fun bindImageFromUrl(view: ImageView, imageUrl: String?) {
     }
 }
 
+@BindingAdapter("image")
+fun setImage(imageView: ImageView, imageUrl: String?) {
+    if (!imageUrl.isNullOrEmpty()) {
+        Glide.with(imageView.context)
+            .load(imageUrl)
+            .transition(DrawableTransitionOptions.withCrossFade())
+            .into(imageView)
+    }
+}
+
+@BindingAdapter("defaultImageResource")
+fun setImage(imageView: ImageView, imageUrl: String?, imageResource: Int) {
+    if (!imageUrl.isNullOrEmpty()) {
+        Glide.with(imageView.context)
+            .load(imageUrl)
+            .error(imageResource) //错误图片
+            .transition(DrawableTransitionOptions.withCrossFade())
+            .into(imageView)
+    }
+}
+
 @BindingAdapter("isGone")
 fun bindIsGone(view: FloatingActionButton, isGone: Boolean?) {
     if (isGone == null || isGone) {
@@ -74,3 +95,4 @@ fun bindWateringText(textView: TextView, wateringInterval: Int) {
 
     textView.text = quantityString
 }
+
