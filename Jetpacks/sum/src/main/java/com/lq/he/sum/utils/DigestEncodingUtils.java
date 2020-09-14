@@ -171,7 +171,7 @@ public class DigestEncodingUtils {
             stream = new FileInputStream(file);
             return md5(stream);
         } finally {
-            IoUtils.closeQuietly(stream);
+            // IoUtils.closeQuietly(stream);
         }
     }
 }
