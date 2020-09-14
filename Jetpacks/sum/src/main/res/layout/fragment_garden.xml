@@ -13,6 +13,55 @@
   ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
+
+  1. 当前xml对应的DataBidnding类 FragmentGardenBinding
+    public class FragmentGardenBindingImpl extends FragmentGardenBinding  {
+  2. Impl类中的 调用BindingAdapter接口
+    @BindingAdapter("image")
+    fun setImage(imageView: ImageView, imageUrl: String?) {
+        if (!imageUrl.isNullOrEmpty()) {
+            Glide.with(imageView.context)
+                .load(imageUrl)
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .into(imageView)
+        }
+    }
+  3. BindingAdapter中定义一些接口，在xml布局变量中定义一个String，用于存放网络图片的地址
+    <variable
+            name="networkImage"
+            type="String" />
+  4. 接着在xml中通过别名，使用@{}中的参数，调用接口时传入的参数
+    <ImageView
+        app:image="@{networkImage}"/>
+  5. 在Activity中为布局变量赋值
+    activityBindingAdapterBinding = DataBindingUtil.setContentView(this, R.layout.fragment_garden);
+    activityBindingAdatperBinding.setNetworkImage("https://XXXX.jpg");
+
+
+  1. 重载
+    @BindingAdapter("defaultImageResource")
+    fun setImage(imageView: ImageView, imageUrl: String?, imageResource: Int) {
+        if (!imageUrl.isNullOrEmpty()) {
+            Glide.with(imageView.context)
+                .load(imageUrl)
+                .error(imageResource) //错误图片
+                .transition(DrawableTransitionOptions.withCrossFade())
+                .into(imageView)
+        }
+    }
+
+   2. BindingAdapter中定义一些接口，在xml布局变量中定义一个String，用于存放网络图片的地址
+        <variable
+            name="localImage"
+            type="int" />
+   3. 接着在xml中通过别名，使用@{}中的参数，调用接口时传入的参数
+    <ImageView
+        app:defaultImageResource="@{localImage}"
+        app:image="@{networkImage}"/>
+   4. 在Activity中为布局变量赋值
+    activityBindingAdapterBinding = DataBindingUtil.setContentView(this, R.layout.fragment_garden);
+    activityBindingAdatperBinding.setLocalImage(R.drawable.local_image);
+
   -->
 
 <layout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -25,6 +74,13 @@
                 name="hasPlantings"
                 type="boolean" />
 
+        <variable
+            name="networkImage"
+            type="String" />
+
+        <variable
+            name="localImage"
+            type="int" />
     </data>
 
     <FrameLayout
@@ -65,6 +121,12 @@
                 android:text="@string/add_plant"
                 app:backgroundTint="?attr/colorOnPrimary"
                 app:shapeAppearance="@style/ShapeAppearance.Sunflower.Button.Add"/>
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:defaultImageResource="@{localImage}"
+                app:image="@{networkImage}"/>
 
         </LinearLayout>
 
