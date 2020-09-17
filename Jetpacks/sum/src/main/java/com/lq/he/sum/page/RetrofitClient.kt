@@ -1,17 +1,36 @@
 package com.lq.he.sum.page
 
+import com.lq.he.sum.data.Plant
+import okhttp3.OkHttpClient
+import retrofit2.Callback
 import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class RetrofitClient private constructor() {
 
     lateinit var retrofit: Retrofit
 
     fun RetrofitClient() {
+        val client = OkHttpClient.Builder()
+            .build()
+
         retrofit = Retrofit.Builder()
             .baseUrl("")
-//            .addConverterFactory()
-//            .client()
+            .addConverterFactory(GsonConverterFactory.create()) // 添加用于解析数据的转换库
+            .client(client)
             .build()
+    }
+
+    fun getApi() : PageApi {
+        return retrofit.create(PageApi::class.java)
+    }
+
+    fun getPlants() {
+
+    }
+
+    fun enqueue(response : Callback<Plant>) {
+
     }
 
     companion object {
