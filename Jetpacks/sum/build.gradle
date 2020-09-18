@@ -97,6 +97,19 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$rootProject.coroutinesVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:$rootProject.coroutinesVersion"
 
+    // Okhttp库
+    implementation 'com.squareup.okhttp3:okhttp:3.11.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:3.11.0'
+    // Retrofit库
+    implementation 'com.squareup.retrofit2:retrofit:2.3.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.3.0'
+    //room数据库访问依赖
+    implementation "androidx.room:room-runtime:2.2.5"
+    //lifecycle组件依赖，ViewModel
+    implementation "androidx.lifecycle:lifecycle-runtime:2.2.0"
+    //paging组件依赖
+    implementation "androidx.paging:paging-runtime-ktx:2.1.0"
+
     // Testing dependencies
     androidTestImplementation "androidx.arch.core:core-testing:$rootProject.coreTestingVersion"
     androidTestImplementation "androidx.test.espresso:espresso-contrib:$rootProject.espressoVersion"
